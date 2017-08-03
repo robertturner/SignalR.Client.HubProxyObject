@@ -52,7 +52,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Dictionary_Extensions.cs" />
+    <Compile Include="HubProxy.cs" />
+    <Compile Include="HubProxy_Extensions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Task_Extensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
