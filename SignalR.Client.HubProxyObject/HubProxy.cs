@@ -4,6 +4,7 @@ using Microsoft.AspNet.SignalR.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -15,6 +16,7 @@ namespace SignalR.Client.HubProxyObject
         static Dictionary<Type, MethodInvoker> invokeMethodCache = new Dictionary<Type, MethodInvoker>();
 
         IHubProxy underlyingHubProxy;
+        Dictionary<string, SignalContainer> signals;
 
         public HubObjectProxy(HubConnection connection, string hubName, Type type)
         {
@@ -30,11 +32,22 @@ namespace SignalR.Client.HubProxyObject
 
             underlyingHubProxy = Connection.CreateHubProxy(HubName);
             var interceptor = new Interceptor(this);
-            Proxy = proxyGenerator.CreateInterfaceProxyWithTarget(typeof(IHubProxy), new[] { type }, underlyingHubProxy, interceptor);
+            Proxy = (IHubProxy)proxyGenerator.CreateInterfaceProxyWithTarget(typeof(IHubProxy), new[] { type }, underlyingHubProxy, interceptor);
+            signals = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(p => typeof(HubSignalBase).IsAssignableFrom(p.PropertyType))
+                .ToDictionary(p => p.Name, p => new SignalContainer { Property = p });
+
         }
 
         public Type Type { get; private set; }
-        public object Proxy { get; private set; }
+        public IHubProxy Proxy { get; private set; }
+
+        class SignalContainer
+        {
+            public PropertyInfo Property;
+            public HubSignalBase HubSig;
+            public IDisposable Disposer;
+        }
 
         class Interceptor : IInterceptor
         {
@@ -46,72 +59,89 @@ namespace SignalR.Client.HubProxyObject
                     invocation.Proceed();
                 else
                 {
-                    var retType = invocation.Method.ReturnType;
-                    Type retUnderlyingType = retType;
-                    var retIsGenericTask = retType.IsGenericType && retType.GetGenericTypeDefinition() == typeof(Task<>);
-                    if (retIsGenericTask)
-                        retUnderlyingType = retType.GetGenericArguments()[0];
-                    var retIsTask = retType == typeof(Task) || retIsGenericTask;
-
-                    try
+                    if (invocation.Method.IsSpecialName)
                     {
-                        if (retType == typeof(void) || retType == typeof(Task))
+                        var methodName = invocation.Method.Name;
+                        if (methodName.StartsWith("get_"))
                         {
-                            var task = Parent.underlyingHubProxy.Invoke(invocation.Method.Name, invocation.Arguments);
-                            if (retType == typeof(void))
+                            var name = methodName.Substring(4);
+                            if (Parent.signals.TryGetValue(name, out SignalContainer sig))
                             {
-                                invocation.ReturnValue = null;
-                                task.Wait();
-                            }
-                            else
-                                invocation.ReturnValue = task;
-                        }
-                        else // have results
-                        {
-                            var del = invokeMethodCache.GetOrSet(retUnderlyingType, () => Parent.underlyingHubProxy.GetType().Method(new Type[] { retUnderlyingType }, "Invoke", new[] { typeof(string), typeof(object[]) }).DelegateForCallMethod());
-                            var task = (Task)del(Parent.underlyingHubProxy, invocation.Method.Name, invocation.Arguments);
-                            var genTask = task.TryGetAsGenericTask();
-                            if (!retIsGenericTask)
-                            {
-                                task.Wait();
-                                invocation.ReturnValue = genTask.Result;
-                            }
-                            else // Task<T>
-                            {
-                                var ret = Task_Extensions.CreateGenericTCS(retIsGenericTask ? retUnderlyingType : typeof(bool));
-                                invocation.ReturnValue = ret.Task;
-                                task.ContinueWith(reply =>
+                                if (sig.HubSig == null)
                                 {
-                                    try
+                                    MethodInfo subscriber;
+                                    if (sig.Property.PropertyType.IsGenericType)
                                     {
-                                        if (reply.IsFaulted)
-                                            ret.SetException((reply.Exception.InnerExceptions.Count == 1) ? reply.Exception.InnerException : reply.Exception);
-                                        else
-                                        {
-                                            var genRes = reply.TryGetAsGenericTask();
-                                            ret.SetResult(genRes.Result);
-                                        }
+                                        var argType = sig.Property.PropertyType.GetGenericArguments()[0];
+
+                                        var callbackType = typeof(Action<>).MakeGenericType(argType);
+                                        subscriber = typeof(HubProxyExtensions).Method(new[] { argType }, "On", new Type[] { typeof(IHubProxy), typeof(string), callbackType }, Flags.StaticPublic);
+
+                                        var genSig = typeof(HubSignal<>).MakeGenericType(argType);
+                                        var ctor = genSig.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic);
+                                        sig.HubSig = (HubSignalBase)ctor[0].Invoke(new object[] { null, name });
                                     }
-                                    catch (Exception ex)
+                                    else
                                     {
-                                        ret.SetException(ex);
+                                        subscriber = typeof(HubProxyExtensions).Method("On", new Type[] { typeof(IHubProxy), typeof(string), typeof(Action) }, Flags.Static);
+                                        sig.HubSig = new HubSignal(null, name);
                                     }
-                                });
+                                    sig.Disposer = (IDisposable)subscriber.Invoke(null, new object[] { Parent.Proxy, name, sig.HubSig.GetCaller() });
+                                }
+                                invocation.ReturnValue = sig.HubSig;
                             }
                         }
+                        else
+                            invocation.Proceed();
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        if (retType != typeof(void))
+                        var retType = invocation.Method.ReturnType;
+                        Type retUnderlyingType = retType;
+                        var retIsGenericTask = retType.IsGenericType && retType.GetGenericTypeDefinition() == typeof(Task<>);
+                        if (retIsGenericTask)
+                            retUnderlyingType = retType.GetGenericArguments()[0];
+                        var retIsTask = retType == typeof(Task) || retIsGenericTask;
+                        try
                         {
-                            if (ex is AggregateException agEx && agEx.InnerExceptions.Count == 1)
-                                ex = agEx.InnerException;
-                            if (retType == typeof(Task))
-                                invocation.ReturnValue = ex.AsTaskException();
-                            else if (retIsGenericTask)
-                                invocation.ReturnValue = ex.AsGenericTaskException(retUnderlyingType);
-                            else
-                                throw;
+                            if (retType == typeof(void) || retType == typeof(Task))
+                            {
+                                var task = Parent.underlyingHubProxy.Invoke(invocation.Method.Name, invocation.Arguments);
+                                if (retType == typeof(void))
+                                {
+                                    invocation.ReturnValue = null;
+                                    task.Wait();
+                                }
+                                else
+                                    invocation.ReturnValue = task;
+                            }
+                            else // have results
+                            {
+                                var methodCaller = invokeMethodCache.GetOrSet(retUnderlyingType, () => Parent.underlyingHubProxy.GetType().Method(new Type[] { retUnderlyingType }, "Invoke", new[] { typeof(string), typeof(object[]) }).DelegateForCallMethod());
+                                var task = (Task)methodCaller(Parent.underlyingHubProxy, invocation.Method.Name, invocation.Arguments);
+                                if (!retIsGenericTask)
+                                {
+                                    var genTask = task.TryGetAsGenericTask();
+                                    task.Wait();
+                                    invocation.ReturnValue = genTask.Result;
+                                }
+                                else // Task<T>
+                                    invocation.ReturnValue = task;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            if (retType != typeof(void))
+                            {
+                                if (ex is AggregateException agEx && agEx.InnerExceptions.Count == 1)
+                                    ex = agEx.InnerException;
+                                if (retType == typeof(Task))
+                                    invocation.ReturnValue = Task.FromException(ex);
+                                else if (retIsGenericTask)
+                                    invocation.ReturnValue = ex.AsGenericTaskException(retUnderlyingType);
+                                else
+                                    throw;
+                            }
                         }
                     }
                 }

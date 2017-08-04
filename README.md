@@ -25,8 +25,8 @@ await myHubProxy.MethodWithNoReturn(4, "arg2");
 ...
 myHubProxy.SyncMethodNoArgs(); // will block on method call
 ```
-## Usage notes
-
+## Todo
+- Document Signal subscription model
 
 
 

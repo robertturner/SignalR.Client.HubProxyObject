@@ -9,27 +9,10 @@ namespace SignalR.Client.HubProxyObject
 {
     public static class Task_Extensions
     {
-
-        public static readonly Task EmptyTask = Task.FromResult<bool>(true);
-
-        public static Task<T> GetEmptyTask<T>() { return Task.FromResult<T>(default(T)); }
-
-        public static Task<T> AsTask<T>(this T obj)
-        {
-            return Task.FromResult<T>(obj);
-        }
-
         public static Task<T> AsTask<T>(this T obj, object state)
         {
-            TaskCompletionSource<T> tcs = new TaskCompletionSource<T>(state);
+            var tcs = new TaskCompletionSource<T>(state);
             tcs.SetResult(obj);
-            return tcs.Task;
-        }
-
-        public static Task AsTaskException(this Exception exception)
-        {
-            TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
-            tcs.SetException(exception);
             return tcs.Task;
         }
 

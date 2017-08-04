@@ -11,5 +11,7 @@ namespace SignalR.Client.HubProxyObject.Demo
         Task<string> AsyncMethod(string arg1);
         Task MethodWithNoReturn(int arg1, string arg2);
         void SyncMethodNoArgs();
+
+        HubSignal<(string Arg1, int Arg2)> ASignal { get; }
     }
 }

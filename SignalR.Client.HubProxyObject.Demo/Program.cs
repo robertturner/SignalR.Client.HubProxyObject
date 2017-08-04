@@ -19,25 +19,39 @@ namespace SignalR.Client.HubProxyObject.Demo
             using (WebApp.Start<Startup>(url))
             {
 
-                DoClient();
+                DoClient().Wait();
 
                 Console.WriteLine("Server running!");
-                Console.ReadLine();
             }
         }
 
-        static async void DoClient()
+        static async Task DoClient()
         {
-            using (var signalR = new HubConnection(url))
+            try
             {
-                IMyHub myHubProxy = signalR.CreateProxy<IMyHub>("myHub");
-                await signalR.Start();
+                using (var signalR = new HubConnection(url))
+                {
+                    IMyHub myHubProxy = signalR.CreateProxy<IMyHub>("myHub");
+                    var baseProxy = (IHubProxy)myHubProxy;
+                    await signalR.Start();
 
-                string result = await myHubProxy.AsyncMethod("an arg");
-                await myHubProxy.MethodWithNoReturn(4, "arg2");
-                myHubProxy.SyncMethodNoArgs(); // will block on method call
+                    myHubProxy.ASignal.On += arg =>
+                    {
+
+                    };
+
+
+                    string result = await myHubProxy.AsyncMethod("an arg");
+                    await myHubProxy.MethodWithNoReturn(4, "arg2");
+                    myHubProxy.SyncMethodNoArgs(); // will block on method call
+
+                    Console.ReadLine();
+                }
             }
+            catch (Exception ex)
+            {
 
+            }
         }
 
 
