@@ -11,7 +11,7 @@ public interface IMyHub
   void SyncMethodNoArgs();
 }
 ```
-Create a hub proxy and start the client:
+Create proxy and start the client:
 ```
 var signalR = new HubConnection(url);
 IMyHub myHubProxy = signalR.CreateProxy<IMyHub>("myHub");
@@ -25,8 +25,29 @@ await myHubProxy.MethodWithNoReturn(4, "arg2");
 ...
 myHubProxy.SyncMethodNoArgs(); // will block on method call
 ```
-## Todo
-- Document Signal subscription model
-
-
-
+## Server to Client calls
+Add HubSignal property to Hub interface:
+```
+public interface IMyHub
+{
+	HubSignal<string> ASignal { get; }
+}
+```
+Subscribe to the "On" event at the client:
+```
+myHubProxy.ASignal.On += arg => { };
+```
+At server end, implement interface with a private set method, call HubSignal.ImplementSignals before using, then call All, Others, or Caller:
+```
+public class MyHub : Hub, IMyHub
+{
+    public MyHub()
+    {
+        HubSignal.ImplementSignals(this);
+    }
+	public HubSignal<string> ASignal { get; private set; }
+	...
+}
+...
+hubInstance.ASignal.Others("an arg");
+```
