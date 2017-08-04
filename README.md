@@ -14,10 +14,10 @@ public interface IMyHub
 Create a hub proxy and start the client:
 ```
 var signalR = new HubConnection(url);
-IMyHub myHubProxy = signalR.CreateProxy<ITestHub>("myHub");
+IMyHub myHubProxy = signalR.CreateProxy<IMyHub>("myHub");
 await signalR.Start();
 ```
-Then awesomeness:
+Super happy place:
 ```
 string result = await myHubProxy.AsyncMethod("an arg");
 ...
