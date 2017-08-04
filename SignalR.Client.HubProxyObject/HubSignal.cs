@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNet.SignalR;
+﻿using Fasterflect;
+using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Client;
 using Microsoft.AspNet.SignalR.Hubs;
 using System;
@@ -29,14 +30,18 @@ namespace SignalR.Client.HubProxyObject
         public event Action On;
         internal override object GetCaller() { return (Action)(() => On?.Invoke()); }
 
-        public static void ImplementSignals(Hub hub, IHubConnectionContext<dynamic> context = null)
+        public static void ImplementSignals(Hub hub)
         {
             if (hub == null)
                 throw new ArgumentNullException(nameof(hub));
             var type = hub.GetType();
             var allProps = type.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance);
             var props = allProps.Where(p => typeof(HubSignalBase).IsAssignableFrom(p.PropertyType)).ToArray();
-            IHubConnectionContext<dynamic> callContext = context ?? hub.Clients;
+
+            var getCtxM = typeof(Microsoft.AspNet.SignalR.Infrastructure.IConnectionManager).Method(new[] { type }, "GetHubContext");
+            var hubCtx = (IHubContext)getCtxM.Invoke(GlobalHost.ConnectionManager, new object[0]);
+
+            IHubConnectionContext<dynamic> callContext = hubCtx.Clients;
             foreach (var prop in props)
             {
                 if (!prop.CanWrite)

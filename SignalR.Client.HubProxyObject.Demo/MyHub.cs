@@ -12,7 +12,7 @@ namespace SignalR.Client.HubProxyObject.Demo
     {
         public MyHub()
         {
-            HubSignal.ImplementSignals(this, GlobalHost.ConnectionManager.GetHubContext<MyHub>().Clients);
+            HubSignal.ImplementSignals(this);
         }
 
         public HubSignal<(string Arg1, int Arg2)> ASignal { get; private set; } // auto populated
