@@ -18,11 +18,12 @@ namespace SignalR.Client.HubProxyObject.Demo
         {
             using (WebApp.Start<Startup>(url))
             {
+                Console.WriteLine("Server running!");
 
                 DoClient().Wait();
 
-                Console.WriteLine("Server running!");
             }
+            Console.ReadLine();
         }
 
         static async Task DoClient()

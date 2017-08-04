@@ -14,7 +14,7 @@ namespace SignalR.Client.HubProxyObject
 {
     public class HubSignal : HubSignalBase
     {
-        internal HubSignal(IHubConnectionContext<dynamic> callContext, string signalName = "") : base(callContext, signalName) { }
+        internal HubSignal(Hub hub, string signalName = "") : base(hub, signalName) { }
 
         public static HubSignal ForClient(IHubProxy proxy)
         {
@@ -23,7 +23,17 @@ namespace SignalR.Client.HubProxyObject
 
         public Task All(Hub hub = null)
         {
-            var cp = (hub != null) ? hub.Clients.All : callContext.All;
+            var cp = hub.Clients.All;
+            return cp.Invoke(SignalName);
+        }
+        public Task Other(Hub hub = null)
+        {
+            var cp = hub.Clients.Others;
+            return cp.Invoke(SignalName);
+        }
+        public Task Caller(Hub hub = null)
+        {
+            var cp = hub.Clients.Caller;
             return cp.Invoke(SignalName);
         }
 
@@ -38,10 +48,6 @@ namespace SignalR.Client.HubProxyObject
             var allProps = type.GetProperties(BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance);
             var props = allProps.Where(p => typeof(HubSignalBase).IsAssignableFrom(p.PropertyType)).ToArray();
 
-            var getCtxM = typeof(Microsoft.AspNet.SignalR.Infrastructure.IConnectionManager).Method(new[] { type }, "GetHubContext");
-            var hubCtx = (IHubContext)getCtxM.Invoke(GlobalHost.ConnectionManager, new object[0]);
-
-            IHubConnectionContext<dynamic> callContext = hubCtx.Clients;
             foreach (var prop in props)
             {
                 if (!prop.CanWrite)
@@ -50,12 +56,12 @@ namespace SignalR.Client.HubProxyObject
                 var argType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : typeof(void);
                 HubSignalBase hubSig;
                 if (!prop.PropertyType.IsGenericType)
-                    hubSig = new HubSignal(callContext, prop.Name);
+                    hubSig = new HubSignal(hub, prop.Name);
                 else
                 {
                     var genSig = typeof(HubSignal<>).MakeGenericType(argType);
                     var ctor = genSig.GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic);
-                    hubSig = (HubSignalBase)ctor[0].Invoke(new object[] { callContext, prop.Name });
+                    hubSig = (HubSignalBase)ctor[0].Invoke(new object[] { hub, prop.Name });
                 }
 
                 prop.SetMethod.Invoke(hub, new object[] { hubSig });
@@ -66,16 +72,25 @@ namespace SignalR.Client.HubProxyObject
 
     public class HubSignal<T> : HubSignalBase
     {
-        internal HubSignal(IHubConnectionContext<dynamic> callContext, string signalName = "") : base(callContext, signalName) { }
-        public Task All(T arg, Hub hub = null)
+        internal HubSignal(Hub hub, string signalName = "") : base(hub, signalName) { }
+        public Task All(T arg)
         {
-            var cp = (hub != null) ? hub.Clients.All : callContext.All;
+            var cp = hub.Clients.All;
+            return cp.Invoke(SignalName, arg);
+        }
+        public Task Others(T arg)
+        {
+            var cp = hub.Clients.Others;
+            return cp.Invoke(SignalName, arg);
+        }
+        public Task Caller(T arg)
+        {
+            var cp = hub.Clients.Caller;
             return cp.Invoke(SignalName, arg);
         }
 
         public event Action<T> On;
         internal override object GetCaller() { return (Action <T>)(arg => On?.Invoke((T)arg)); }
-
     }
 
 }

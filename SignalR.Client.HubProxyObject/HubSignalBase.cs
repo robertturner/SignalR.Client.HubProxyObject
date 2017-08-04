@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNet.SignalR.Hubs;
+﻿using Microsoft.AspNet.SignalR;
+using Microsoft.AspNet.SignalR.Hubs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,12 +11,12 @@ namespace SignalR.Client.HubProxyObject
     public abstract class HubSignalBase
     {
         protected readonly string SignalName;
-        protected IHubConnectionContext<dynamic> callContext;
+        protected Hub hub;
 
-        internal HubSignalBase(IHubConnectionContext<dynamic> callContext, string signalName = "")
+        internal HubSignalBase(Hub hub, string signalName = "")
         {
             SignalName = signalName;
-            this.callContext = callContext;
+            this.hub = hub;
         }
 
         internal abstract object GetCaller();
