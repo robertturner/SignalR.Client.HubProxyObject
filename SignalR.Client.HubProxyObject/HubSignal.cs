@@ -36,6 +36,16 @@ namespace SignalR.Client.HubProxyObject
             var cp = hub.Clients.Caller;
             return cp.Invoke(SignalName);
         }
+        public Task Group(string group)
+        {
+            var cp = hub.Clients.Group(group);
+            return cp.Invoke(SignalName);
+        }
+        public Task OthersInGroup(string group)
+        {
+            var cp = hub.Clients.OthersInGroup(group);
+            return cp.Invoke(SignalName);
+        }
 
         public event Action On;
         internal override object GetCaller() { return (Action)(() => On?.Invoke()); }
@@ -86,6 +96,16 @@ namespace SignalR.Client.HubProxyObject
         public Task Caller(T arg)
         {
             var cp = hub.Clients.Caller;
+            return cp.Invoke(SignalName, arg);
+        }
+        public Task Group(string group, T arg)
+        {
+            var cp = hub.Clients.Group(group);
+            return cp.Invoke(SignalName, arg);
+        }
+        public Task OthersInGroup(string group, T arg)
+        {
+            var cp = hub.Clients.OthersInGroup(group);
             return cp.Invoke(SignalName, arg);
         }
 
