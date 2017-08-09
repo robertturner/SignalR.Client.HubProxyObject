@@ -36,7 +36,6 @@ namespace SignalR.Client.HubProxyObject
             signals = type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
                 .Where(p => typeof(HubSignalBase).IsAssignableFrom(p.PropertyType))
                 .ToDictionary(p => p.Name, p => new SignalContainer { Property = p });
-
         }
 
         public Type Type { get; private set; }
