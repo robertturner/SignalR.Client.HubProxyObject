@@ -13,7 +13,7 @@ namespace SignalR.Client.HubProxyObject
     public class HubObjectProxy
     {
         static ProxyGenerator proxyGenerator = new ProxyGenerator();
-        static Dictionary<Type, MethodInvoker> invokeMethodCache = new Dictionary<Type, MethodInvoker>();
+        static Dictionary<Type, MethodInfo> invokeMethodCache = new Dictionary<Type, MethodInfo>();
 
         IHubProxy underlyingHubProxy;
         Dictionary<string, SignalContainer> signals;
@@ -118,8 +118,8 @@ namespace SignalR.Client.HubProxyObject
                             }
                             else // have results
                             {
-                                var methodCaller = invokeMethodCache.GetOrSet(retUnderlyingType, () => Parent.underlyingHubProxy.GetType().Method(new Type[] { retUnderlyingType }, "Invoke", new[] { typeof(string), typeof(object[]) }).DelegateForCallMethod());
-                                var task = (Task)methodCaller(Parent.underlyingHubProxy, invocation.Method.Name, invocation.Arguments);
+                                var method = invokeMethodCache.GetOrSet(retUnderlyingType, () => Parent.underlyingHubProxy.GetType().Method(new Type[] { retUnderlyingType }, "Invoke", new[] { typeof(string), typeof(object[]) }));
+                                var task = (Task)method.Invoke(Parent.underlyingHubProxy, new object[] { invocation.Method.Name, invocation.Arguments });
                                 if (!retIsGenericTask)
                                 {
                                     var genTask = task.TryGetAsGenericTask();

@@ -16,10 +16,7 @@ namespace SignalR.Client.HubProxyObject
     {
         internal HubSignal(Hub hub, string signalName = "") : base(hub, signalName) { }
 
-        public static HubSignal ForClient(IHubProxy proxy)
-        {
-            return new HubSignal(null);
-        }
+        public static HubSignal ForClient(IHubProxy proxy) { return new HubSignal(null); }
 
         public Task All(Hub hub = null)
         {
@@ -34,6 +31,16 @@ namespace SignalR.Client.HubProxyObject
         public Task Caller(Hub hub = null)
         {
             var cp = hub.Clients.Caller;
+            return cp.Invoke(SignalName);
+        }
+        public Task Group(string group)
+        {
+            var cp = hub.Clients.Group(group);
+            return cp.Invoke(SignalName);
+        }
+        public Task OthersInGroup(string group)
+        {
+            var cp = hub.Clients.OthersInGroup(group);
             return cp.Invoke(SignalName);
         }
 
@@ -52,6 +59,8 @@ namespace SignalR.Client.HubProxyObject
             {
                 if (!prop.CanWrite)
                     throw new ArgumentException($"HubSignal property {prop.Name} does not support writing.");
+                if (prop.GetMethod.Invoke(hub, new object[0]) != null)
+                    continue;
 
                 var argType = prop.PropertyType.IsGenericType ? prop.PropertyType.GetGenericArguments()[0] : typeof(void);
                 HubSignalBase hubSig;
@@ -88,9 +97,28 @@ namespace SignalR.Client.HubProxyObject
             var cp = hub.Clients.Caller;
             return cp.Invoke(SignalName, arg);
         }
+        public Task Group(string group, T arg)
+        {
+            var cp = hub.Clients.Group(group);
+            return cp.Invoke(SignalName, arg);
+        }
+        public Task OthersInGroup(string group, T arg)
+        {
+            var cp = hub.Clients.OthersInGroup(group);
+            return cp.Invoke(SignalName, arg);
+        }
 
         public event Action<T> On;
         internal override object GetCaller() { return (Action <T>)(arg => On?.Invoke((T)arg)); }
+
+        public static HubSignal<T> Create(Hub hub, string signalName)
+        {
+            if (hub == null)
+                throw new ArgumentNullException(nameof(hub));
+            if (string.IsNullOrEmpty(signalName))
+                throw new ArgumentNullException(nameof(signalName));
+            return new HubSignal<T>(hub, signalName);
+        }
     }
 
 }
