@@ -99,7 +99,7 @@
     <Compile Include="ResilientConnection\ConnectionInfo.cs" />
     <Compile Include="ResilientConnection\IConnection.cs" />
     <Compile Include="ResilientConnection\Observable_Extensions.cs" />
-    <Compile Include="ResilientConnection\ServiceClientBase.cs" />
+    <Compile Include="ResilientConnection\IConnectionProvider_Extensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

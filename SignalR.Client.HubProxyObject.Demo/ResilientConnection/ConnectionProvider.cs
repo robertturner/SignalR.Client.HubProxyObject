@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AspNet.SignalR.Client;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Disposables;
@@ -8,19 +9,22 @@ using System.Threading.Tasks;
 
 namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
 {
-    public class ConnectionProvider : IConnectionProvider, IDisposable
+    public class ConnectionProvider<T> : IConnectionProvider<T>, IDisposable
     {
         private readonly SingleAssignmentDisposable disposable = new SingleAssignmentDisposable();
-        private readonly IObservable<IConnection> connectionSequence;
+        private readonly IObservable<IConnection<T>> connectionSequence;
         private readonly string server;
+        private readonly Func<HubConnection, T> proxyInitialiser;
 
-        public ConnectionProvider(string server)
+        public ConnectionProvider(string server, Func<HubConnection, T> proxyInitialiser)
         {
-            this.server = server;
+
+            this.server = server ?? throw new ArgumentNullException(nameof(server));
+            this.proxyInitialiser = proxyInitialiser ?? throw new ArgumentNullException(nameof(proxyInitialiser));
             connectionSequence = CreateConnectionSequence();
         }
 
-        public IObservable<IConnection> GetActiveConnection()
+        public IObservable<IConnection<T>> GetActiveConnection()
         {
             return connectionSequence;
         }
@@ -30,9 +34,9 @@ namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
             disposable.Dispose();
         }
 
-        private IObservable<IConnection> CreateConnectionSequence()
+        private IObservable<IConnection<T>> CreateConnectionSequence()
         {
-            return Observable.Create<IConnection>(o =>
+            return Observable.Create<IConnection<T>>(o =>
             {
                 //log.Info("Creating new connection...");
                 var connection = GetNextConnection();
@@ -59,9 +63,9 @@ namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
             .LazilyConnect(disposable);
         }
 
-        private IConnection GetNextConnection()
+        private IConnection<T> GetNextConnection()
         {
-            return new Connection(server);
+            return new Connection<T>(server, proxyInitialiser);
         }
     }
 }

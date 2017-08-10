@@ -12,6 +12,7 @@ namespace SignalR.Client.HubProxyObject.Demo
     {
         public MyHub()
         {
+            Console.WriteLine("MyHub: Constructor called");
             HubSignal.ImplementSignals(this);
         }
 
@@ -29,6 +30,7 @@ namespace SignalR.Client.HubProxyObject.Demo
 
         public async void SyncMethodNoArgs()
         {
+            Console.WriteLine("MyHub: SyncMethodNoArgs called");
             await ASignal.All(("bob", 55));
         }
     }

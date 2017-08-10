@@ -7,14 +7,12 @@ using System.Reactive;
 
 namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
 {
-    public interface IConnection
+    public interface IConnection<T>
     {
             IObservable<ConnectionInfo> StatusStream { get; }
             IObservable<Unit> Initialize();
             string Address { get; }
-            //void SetAuthToken(string authToken);
-            //IHubProxy TickerHubProxy { get; }
 
-        
+            T HubProxies { get; }
     }
 }

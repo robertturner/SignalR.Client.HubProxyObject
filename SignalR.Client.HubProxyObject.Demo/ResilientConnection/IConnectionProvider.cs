@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
 {
-    public interface IConnectionProvider
+    public interface IConnectionProvider<T>
     {
-        IObservable<IConnection> GetActiveConnection();
+        IObservable<IConnection<T>> GetActiveConnection();
     }
 
 }

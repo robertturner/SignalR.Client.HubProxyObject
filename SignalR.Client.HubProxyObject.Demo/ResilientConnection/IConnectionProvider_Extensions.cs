@@ -8,18 +8,16 @@ using System.Threading.Tasks;
 
 namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
 {
-    class ServiceClientBase
+    public static class IConnectionProvider_Extensions
     {
-        private readonly IConnectionProvider _connectionProvider;
-
-        protected ServiceClientBase(IConnectionProvider connectionProvider)
+        public static IObservable<T> GetResilientStream<TProxy, T>(this IConnectionProvider<TProxy> connectionProvider, Func<IConnection<TProxy>, IObservable<T>> streamFactory, TimeSpan connectionTimeout)
         {
-            _connectionProvider = connectionProvider;
-        }
+            if (connectionProvider == null)
+                throw new ArgumentNullException(nameof(connectionProvider));
+            if (streamFactory == null)
+                throw new ArgumentNullException(nameof(streamFactory));
 
-        protected IObservable<T> GetResilientStream<T>(Func<IConnection, IObservable<T>> streamFactory, TimeSpan connectionTimeout)
-        {
-            var activeConnections = (from connection in _connectionProvider.GetActiveConnection()
+            var activeConnections = (from connection in connectionProvider.GetActiveConnection()
                                      from status in connection.StatusStream
                                      where status.Status == ConnectionInfo.ConnectionStatus.Connected ||
                                         status.Status == ConnectionInfo.ConnectionStatus.Reconnected

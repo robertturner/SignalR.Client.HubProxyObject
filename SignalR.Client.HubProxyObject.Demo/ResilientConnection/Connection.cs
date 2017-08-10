@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
 {
-    public class Connection : IConnection
+    public class Connection<T> : IConnection<T>
     {
         private readonly ISubject<ConnectionInfo> _statusStream;
         private readonly HubConnection hubConnection;
@@ -19,7 +19,7 @@ namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
         private bool _initialized;
         //private static readonly ILog log = LogManager.GetLogger(typeof(Connection));
 
-        public Connection(string address)
+        public Connection(string address, Func<HubConnection, T> proxyInitialiser)
         {
             _statusStream = new BehaviorSubject<ConnectionInfo>(
                 new ConnectionInfo(ConnectionInfo.ConnectionStatus.Uninitialized, address));
@@ -35,7 +35,11 @@ namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
                 //log.Error("There was a connection error with " + address, exception);
             };
 
-#warning create proxies here
+            try
+            {
+                HubProxies = proxyInitialiser(hubConnection);
+            }
+            catch (Exception ex) { }
             //TickerHubProxy = hubConnection.CreateHubProxy(ServiceConstants.Server.TickerHub);
 
         }
@@ -105,6 +109,8 @@ namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
         }
 
         public string Address { get; private set; }
+
+        public T HubProxies { get; private set; }
 
         //public IHubProxy TickerHubProxy { get; private set; }
 
