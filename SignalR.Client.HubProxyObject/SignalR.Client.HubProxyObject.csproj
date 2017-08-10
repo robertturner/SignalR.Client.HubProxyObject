@@ -64,6 +64,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BindingListHubWrapper.cs" />
     <Compile Include="Dictionary_Extensions.cs" />
     <Compile Include="HubProxy.cs" />
     <Compile Include="HubProxy_Extensions.cs" />
