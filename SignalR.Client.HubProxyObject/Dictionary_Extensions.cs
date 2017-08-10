@@ -21,5 +21,13 @@ namespace SignalR.Client.HubProxyObject
                 dictionary.Add(key, value);
             return value;
         }
+
+        public static TValue GetValueOrDefault<TKey, TValue>(this IReadOnlyDictionary<TKey, TValue> dictionary, TKey key, TValue defaultValue = default(TValue))
+        {
+            if (dictionary == null)
+                return defaultValue;
+            return dictionary.TryGetValue(key, out TValue value) ? value : defaultValue;
+        }
+
     }
 }
