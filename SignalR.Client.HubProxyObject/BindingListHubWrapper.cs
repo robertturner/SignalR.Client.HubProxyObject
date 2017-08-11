@@ -33,10 +33,11 @@ namespace SignalR.Client.HubProxyObject
             event DictionaryChangedEventHandler<TKey> DictionaryChanged;
         }
 
-        class BindingReadonlyDictionaryProxy<TKey, TData> : Dictionary<TKey, TData>, IBindingReadonlyDictionaryProxy<TKey, TData>
+        class BindingReadonlyDictionaryProxy<TKey, TValue> : Dictionary<TKey, TValue>, IBindingReadonlyDictionaryProxy<TKey, TValue>
         {
+            public Tuple<TKey> SuppressKey = null;
             Action disposer;
-            public BindingReadonlyDictionaryProxy(Dictionary<TKey, TData> init, Action disposer) : base(init) { this.disposer = disposer; }
+            public BindingReadonlyDictionaryProxy(Dictionary<TKey, TValue> init, Action disposer) : base(init) { this.disposer = disposer; }
             public BindingReadonlyDictionaryProxy() { }
 
             public void RaiseListChanged(DictionaryChangedEventArgs<TKey> args) { DictionaryChanged?.Invoke(this, args); }
@@ -47,21 +48,50 @@ namespace SignalR.Client.HubProxyObject
                 disposer = null;
             }
 
-            public void ProxyAdd(TKey key, TData value) { this[key] = value; }
+            public void ProxyAdd(TKey key, TValue value) { this[key] = value; }
             public void ProxyDelete(TKey key) { Remove(key); }
             public void ProxyClear() { Clear(); }
 
             public event DictionaryChangedEventHandler<TKey> DictionaryChanged;
         }
 
-        public static async Task<IBindingReadonlyDictionaryProxy<TDataKey, TList>> GetProxy<TDataKey, TList>(
-            Func<Task<Dictionary<TDataKey, TList>>> getAllCaller,
-            HubSignal<(TDataKey Key, ListChangedType Change, string Property, object Data)> itemChanged)
+        class ValContainer<TKey>
         {
-            var dictT = getAllCaller();
-            var props = TypeDescriptor.GetProperties(typeof(TList));
-            BindingReadonlyDictionaryProxy<TDataKey, TList> bl = null;
-            Action<(TDataKey Key, ListChangedType Change, string Property, object Data)> onChange = args =>
+            public Tuple<TKey> Key = null;
+        }
+
+        public static async Task<IBindingReadonlyDictionaryProxy<TKey, TValue>> GetProxy<TKey, TValue>(
+            Func<Tuple<TKey, string, object>, Task<Dictionary<TKey, TValue>>> getAllOrUpdater,
+            HubSignal<(TKey Key, ListChangedType Change, string Property, object Data)> itemUpdateSignal,
+            Func<TValue, TKey> keyProvider)
+        {
+            var dcea = new DictionaryChangedEventArgs<TKey>(ListChangedType.ItemAdded, default(TKey));
+
+            if (getAllOrUpdater == null)
+                throw new ArgumentNullException(nameof(getAllOrUpdater));
+            if (itemUpdateSignal == null)
+                throw new ArgumentNullException(nameof(itemUpdateSignal));
+            if (keyProvider == null)
+                throw new ArgumentNullException(nameof(keyProvider));
+
+            var dictT = getAllOrUpdater(null);
+            var props = TypeDescriptor.GetProperties(typeof(TValue));
+            BindingReadonlyDictionaryProxy<TKey, TValue> bl = null;
+
+            PropertyChangedEventHandler itemChangedLocally = (sender, propChangedArgs) =>
+            {
+                if (sender is TValue value)
+                {
+                    var key = keyProvider(value);
+                    if (bl.SuppressKey == null || !bl.SuppressKey.Item1.Equals(key))
+                    {
+                        var val = props.Find(propChangedArgs.PropertyName, false).GetValue(sender);
+                        getAllOrUpdater(new Tuple<TKey, string, object>(key, propChangedArgs.PropertyName, val)); // fire it off and not worry about task
+                    }
+                }
+            };
+
+            Action<(TKey Key, ListChangedType Change, string Property, object Data)> onChange = args =>
             {
                 var data = args.Data;
                 var jObj = data as JObject;
@@ -87,78 +117,152 @@ namespace SignalR.Client.HubProxyObject
                                     try
                                     {
                                         if (!pd.IsReadOnly)
-                                            pd.SetValue(bl[args.Key], val);
+                                        {
+                                            var item = bl[args.Key];
+                                            lock (item)
+                                            {
+                                                bl.SuppressKey = new Tuple<TKey>(args.Key);
+                                                try
+                                                {
+                                                    pd.SetValue(item, val);
+                                                }
+                                                finally
+                                                {
+                                                    bl.SuppressKey = null;
+                                                }
+                                            }
+                                        }
                                     }
                                     catch (InvalidCastException) // Unlikely but necessary
                                     { }
                                 }
                             }
-                            bl.RaiseListChanged(new DictionaryChangedEventArgs<TDataKey>(args.Change, args.Key, pd, val));
+                            bl.RaiseListChanged(new DictionaryChangedEventArgs<TKey>(args.Change, args.Key, pd, val));
                         }
                         break;
                     case ListChangedType.ItemAdded:
                         {
-                            TList newItem = default(TList);
+                            TValue newItem = default(TValue);
                             if (jObj != null)
                             {
                                 try
                                 {
-                                    newItem = jObj.ToObject<TList>();
+                                    newItem = jObj.ToObject<TValue>();
                                 }
                                 catch (Exception ex)
                                 { }
                             }
+                            if (newItem is INotifyPropertyChanged npc)
+                                npc.PropertyChanged += itemChangedLocally;
                             bl.ProxyAdd(args.Key, newItem);
-                            bl.RaiseListChanged(new DictionaryChangedEventArgs<TDataKey>(args.Change, args.Key, null, newItem));
+                            bl.RaiseListChanged(new DictionaryChangedEventArgs<TKey>(args.Change, args.Key, null, newItem));
                         }
                         break;
                     case ListChangedType.ItemDeleted:
+                        if (typeof(INotifyPropertyChanged).IsAssignableFrom(typeof(TValue)))
+                            ((INotifyPropertyChanged)bl[args.Key]).PropertyChanged -= itemChangedLocally;
                         bl.ProxyDelete(args.Key);
-                        bl.RaiseListChanged(new DictionaryChangedEventArgs<TDataKey>(args.Change, args.Key));
+                        bl.RaiseListChanged(new DictionaryChangedEventArgs<TKey>(args.Change, args.Key));
                         break;
                     case ListChangedType.Reset:
+                        if (typeof(INotifyPropertyChanged).IsAssignableFrom(typeof(TValue)))
+                        {
+                            foreach (var kvp in bl)
+                                ((INotifyPropertyChanged)bl).PropertyChanged -= itemChangedLocally;
+                        }
                         bl.ProxyClear();
-                        bl.RaiseListChanged(new DictionaryChangedEventArgs<TDataKey>(args.Change));
+                        bl.RaiseListChanged(new DictionaryChangedEventArgs<TKey>(args.Change));
+                        
                         break;
                 }
             };
-            bl = new BindingReadonlyDictionaryProxy<TDataKey, TList>(await dictT, () => itemChanged.On -= onChange);
-            itemChanged.On += onChange;
+            var initDict = await dictT;
+            if (typeof(INotifyPropertyChanged).IsAssignableFrom(typeof(TValue)))
+            {
+                foreach (var kvp in initDict)
+                    ((INotifyPropertyChanged)kvp.Value).PropertyChanged += itemChangedLocally;
+            }
+            bl = new BindingReadonlyDictionaryProxy<TKey, TValue>(initDict, () => itemUpdateSignal.On -= onChange);
+            itemUpdateSignal.On += onChange;
             return bl;
         }
 
-
-        public static (Func<Dictionary<TDataKey, TList>> GetAll, HubSignal<(TDataKey Key, ListChangedType Change, string Property, object Data)> Updater) 
-            GetHubEntries<TList, TDataKey>(Hub hub, BindingList<TList> sourceList, Func<TList, TDataKey> keyProvider, string updaterSignalName)
+        public static (Func<Tuple<TKey, string, object>, Dictionary<TKey, TValue>> GetAll, HubSignal<(TKey Key, ListChangedType Change, string Property, object Data)> Updater) 
+            GetHubEntries<TKey, TValue>(Hub hub, BindingList<TValue> sourceList, Func<TValue, TKey> keyProvider, string updaterSignalName)
         {
-            Func<Dictionary<TDataKey, TList>> getAll = () => sourceList.ToDictionary(v => keyProvider(v), v => v);
-            var objProperties = typeof(TList).GetProperties(System.Reflection.BindingFlags.GetProperty | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-                .ToDictionary(p => p.Name, p => p);
-
-            var hubSignal = HubSignal<(TDataKey Key, ListChangedType Change, string Property, object Data)>.Create(hub, updaterSignalName);
-            sourceList.ListChanged += (sender, args) =>
+            var props = TypeDescriptor.GetProperties(typeof(TValue));
+            ValContainer<TKey> suppressFromKey = new ValContainer<TKey>();
+            Func<Tuple<TKey, string, object>, Dictionary<TKey, TValue>> getAll = arg =>
             {
-                var newItem = (args.NewIndex >= 0) ? sourceList[args.NewIndex] : default(TList);
-                var oldItem = (args.OldIndex >= 0) ? sourceList[args.OldIndex] : default(TList);
+                if (arg == null)
+                    return sourceList.ToDictionary(v => keyProvider(v), v => v);
+                else
+                {
+                    // Value updated. Need to suppress callback before updating
+                    TValue value;
+                    lock (sourceList)
+                    {
+                        var match = sourceList.Where(item => keyProvider(item).Equals(arg.Item1));
+                        if (match.Any() && !match.Skip(1).Any())
+                            value = match.First();
+                        else
+                            return null;
+                    }
+                    var propDesc = props.Find(arg.Item2, false);
+                    if (propDesc != null)
+                    {
+                        var key = keyProvider(value);
+                        var propVal = arg.Item3;
+                        if (propVal is JObject jObj)
+                            propVal = jObj.ToObject(propDesc.PropertyType);
+                        lock (value)
+                        {
+                            suppressFromKey.Key = new Tuple<TKey>(key);
+                            try
+                            {
+                                propDesc.SetValue(value, propVal);
+                            }
+                            finally
+                            {
+                                suppressFromKey.Key = null;
+                            }
+                        }
+                    }
+                    return null;
+                }
+            };
+
+            var hubSignal = HubSignal<(TKey Key, ListChangedType Change, string Property, object Data)>.Create(hub, updaterSignalName);
+            ListChangedEventHandler listChangedHandler = (sender, args) =>
+            {
+                var newItem = (args.NewIndex >= 0) ? sourceList[args.NewIndex] : default(TValue);
+                var oldItem = (args.OldIndex >= 0) ? sourceList[args.OldIndex] : default(TValue);
                 switch (args.ListChangedType)
                 {
                     case ListChangedType.ItemAdded:
                         hubSignal.All((keyProvider(newItem), args.ListChangedType, null, newItem));
                         break;
                     case ListChangedType.ItemChanged:
-                        hubSignal.All((keyProvider(newItem), args.ListChangedType, args.PropertyDescriptor.Name, objProperties.GetValueOrDefault(args.PropertyDescriptor.Name).GetMethod.Invoke(newItem, new object[0])));
+                        var key = keyProvider(newItem);
+                        if (suppressFromKey.Key == null || !suppressFromKey.Key.Item1.Equals(key))
+                        {
+                            if (args.PropertyDescriptor != null)
+                                hubSignal.All((key, args.ListChangedType, args.PropertyDescriptor.Name, args.PropertyDescriptor.GetValue(newItem)));
+                            else
+                                hubSignal.All((keyProvider(newItem), args.ListChangedType, null, null));
+                        }
                         break;
                     case ListChangedType.ItemDeleted:
                         hubSignal.All((keyProvider(oldItem), args.ListChangedType, null, null));
                         break;
                     case ListChangedType.Reset:
-                        hubSignal.All((default(TDataKey), args.ListChangedType, null, null));
+                        hubSignal.All((default(TKey), args.ListChangedType, null, null));
                         break;
                     default:
                         throw new ArgumentException("Unhandled/unimplemented/unsupported change type: " + args.ListChangedType.ToString());
                 }
             };
-
+            sourceList.ListChanged += listChangedHandler;
             return (getAll, hubSignal);
         }
 

@@ -9,7 +9,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SignalR.Client.HubProxyObject.Demo.ResilientConnection;
+using SignalR.Client.HubProxyObject.ResilientConnection;
 
 namespace SignalR.Client.HubProxyObject.Demo
 {

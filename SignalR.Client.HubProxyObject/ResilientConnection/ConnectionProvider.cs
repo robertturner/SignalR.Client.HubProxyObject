@@ -7,7 +7,7 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
+namespace SignalR.Client.HubProxyObject.ResilientConnection
 {
     public class ConnectionProvider<T> : IConnectionProvider<T>, IDisposable
     {

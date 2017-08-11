@@ -61,9 +61,11 @@ namespace SignalR.Client.HubProxyObject
                     if (invocation.Method.IsSpecialName)
                     {
                         bool handled = false;
+                        throw new NotImplementedException();
                         var methodName = invocation.Method.Name;
                         if (methodName.StartsWith("get_"))
                         {
+#if false
                             var name = methodName.Substring(4);
                             if (Parent.signals.TryGetValue(name, out SignalContainer sig))
                             {
@@ -91,6 +93,7 @@ namespace SignalR.Client.HubProxyObject
                                 }
                                 invocation.ReturnValue = sig.HubSig;
                             }
+#endif
                         }
                         if (!handled)
                             throw new NotImplementedException($"Method: {methodName}");

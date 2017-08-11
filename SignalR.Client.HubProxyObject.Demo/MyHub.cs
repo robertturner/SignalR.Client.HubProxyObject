@@ -13,13 +13,18 @@ namespace SignalR.Client.HubProxyObject.Demo
         public MyHub()
         {
             Console.WriteLine("MyHub: Constructor called");
-            HubSignal.ImplementSignals(this);
+            throw new NotImplementedException();
+            //HubSignal.ImplementSignals(this);
         }
 
         public HubSignal<(string Arg1, int Arg2)> ASignal { get; private set; } // auto populated
 
+        HubSignal signals;
+        public event Action<(string Arg1, int Arg2)> Signal2;
+
         public Task<string> AsyncMethod(string arg1)
         {
+            //signals.All(Signal2, ("bob", 2));
             return Task.FromResult("AsyncMethod called with arg1: " + arg1);
         }
 

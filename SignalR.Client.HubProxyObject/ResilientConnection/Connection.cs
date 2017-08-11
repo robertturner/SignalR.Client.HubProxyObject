@@ -9,7 +9,7 @@ using System.Reactive.Subjects;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
+namespace SignalR.Client.HubProxyObject.ResilientConnection
 {
     public class Connection<T> : IConnection<T>
     {
@@ -111,13 +111,6 @@ namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
         public string Address { get; private set; }
 
         public T HubProxies { get; private set; }
-
-        //public IHubProxy TickerHubProxy { get; private set; }
-
-        /*public void SetAuthToken(string authToken)
-        {
-            //hubConnection.Headers[AuthTokenProvider.AuthTokenKey] = authToken;
-        }*/
 
         public override string ToString()
         {

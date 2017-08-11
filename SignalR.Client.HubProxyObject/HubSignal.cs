@@ -12,23 +12,60 @@ using System.Threading.Tasks;
 
 namespace SignalR.Client.HubProxyObject
 {
-    public class HubSignal : HubSignalBase
+    public class HubSignal// : HubSignalBase
     {
+        Dictionary<MethodInfo, string> events;
+        Hub hub;
+        public HubSignal(Hub hub)
+        {
+            this.hub = hub ?? throw new ArgumentNullException(nameof(hub));
+            var type = hub.GetType();
+            var allEvents = type.GetEvents(BindingFlags.Public | BindingFlags.Instance);
+            events = allEvents.ToDictionary(ev => ev.RaiseMethod, ev => ev.Name);
+        }
+
+#if true
+        public Task All(Action signal)
+        {
+            var method = events.GetValueOrDefault(signal.Method);
+            if (method == null)
+                return Task.CompletedTask;
+            var cp = hub.Clients.All;
+            return cp.Invoke(method);
+        }
+        public Task All<T>(Action<T> signal, T arg)
+        {
+            var method = events.GetValueOrDefault(signal.Method);
+            if (method == null)
+                return Task.CompletedTask;
+            var cp = hub.Clients.All;
+            return cp.Invoke(method, arg);
+        }
+
+#else
         internal HubSignal(Hub hub, string signalName = "") : base(hub, signalName) { }
+
+        public static HubSignal Create(Hub hub, Action @event)
+        {
+            throw new NotImplementedException();
+            return null;
+        }
 
         public static HubSignal ForClient(IHubProxy proxy) { return new HubSignal(null); }
 
-        public Task All(Hub hub = null)
+
+
+        public Task All()
         {
             var cp = hub.Clients.All;
             return cp.Invoke(SignalName);
         }
-        public Task Other(Hub hub = null)
+        public Task Other()
         {
             var cp = hub.Clients.Others;
             return cp.Invoke(SignalName);
         }
-        public Task Caller(Hub hub = null)
+        public Task Caller()
         {
             var cp = hub.Clients.Caller;
             return cp.Invoke(SignalName);
@@ -77,6 +114,7 @@ namespace SignalR.Client.HubProxyObject
             }
 
         }
+#endif
     }
 
     public class HubSignal<T> : HubSignalBase

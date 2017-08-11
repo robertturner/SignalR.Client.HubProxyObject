@@ -13,5 +13,7 @@ namespace SignalR.Client.HubProxyObject.Demo
         void SyncMethodNoArgs();
 
         HubSignal<(string Arg1, int Arg2)> ASignal { get; }
+
+        event Action<(string Arg1, int Arg2)> Signal2;
     }
 }

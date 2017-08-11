@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Reactive;
 
-namespace SignalR.Client.HubProxyObject.Demo.ResilientConnection
+namespace SignalR.Client.HubProxyObject.ResilientConnection
 {
     public interface IConnection<T>
     {
