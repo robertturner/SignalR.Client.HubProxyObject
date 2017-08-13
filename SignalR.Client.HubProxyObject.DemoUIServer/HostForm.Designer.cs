@@ -28,12 +28,34 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
+            this.buttonCallSig = new System.Windows.Forms.Button();
+            this.SuspendLayout();
+            // 
+            // buttonCallSig
+            // 
+            this.buttonCallSig.Location = new System.Drawing.Point(12, 12);
+            this.buttonCallSig.Name = "buttonCallSig";
+            this.buttonCallSig.Size = new System.Drawing.Size(75, 23);
+            this.buttonCallSig.TabIndex = 0;
+            this.buttonCallSig.Text = "Call Sig";
+            this.buttonCallSig.UseVisualStyleBackColor = true;
+            this.buttonCallSig.Click += new System.EventHandler(this.buttonCallSig_Click);
+            // 
+            // HostForm
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.Text = "Form1";
+            this.ClientSize = new System.Drawing.Size(476, 356);
+            this.Controls.Add(this.buttonCallSig);
+            this.Name = "HostForm";
+            this.Text = "HostForm";
+            this.ResumeLayout(false);
+
         }
 
         #endregion
+
+        private System.Windows.Forms.Button buttonCallSig;
     }
 }
 

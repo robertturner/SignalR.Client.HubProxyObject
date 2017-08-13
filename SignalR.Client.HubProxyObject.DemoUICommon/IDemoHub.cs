@@ -12,5 +12,7 @@ namespace SignalR.Client.HubProxyObject.DemoUICommon
         Task<Dictionary<string, ADataItem>> GetOrUpdateItem(Tuple<string, string, object> updateOrAll = null);
         //HubSignal<(string Key, ListChangedType Change, string Property, object Data)> ItemChangeCallback { get; }
         event Action<(string Key, ListChangedType Change, string Property, object Data)> ItemChangeCallback;
+
+        event Action<string> ASig;
     }
 }

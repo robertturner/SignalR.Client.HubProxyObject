@@ -37,7 +37,7 @@ namespace SignalR.Client.HubProxyObject
         {
             public Tuple<TKey> SuppressKey = null;
             Action disposer;
-            public BindingReadonlyDictionaryProxy(Dictionary<TKey, TValue> init, Action disposer) : base(init) { this.disposer = disposer; }
+            public BindingReadonlyDictionaryProxy(Dictionary<TKey, TValue> init, Action disposer = null) : base(init) { this.disposer = disposer; }
             public BindingReadonlyDictionaryProxy() { }
 
             public void RaiseListChanged(DictionaryChangedEventArgs<TKey> args) { DictionaryChanged?.Invoke(this, args); }
@@ -60,21 +60,20 @@ namespace SignalR.Client.HubProxyObject
             public Tuple<TKey> Key = null;
         }
 
-        public static async Task<IBindingReadonlyDictionaryProxy<TKey, TValue>> GetProxy<TKey, TValue>(
-            Func<Tuple<TKey, string, object>, Task<Dictionary<TKey, TValue>>> getAllOrUpdater,
-            HubSignal<(TKey Key, ListChangedType Change, string Property, object Data)> itemUpdateSignal,
-            Func<TValue, TKey> keyProvider)
-        {
-            var dcea = new DictionaryChangedEventArgs<TKey>(ListChangedType.ItemAdded, default(TKey));
+        public delegate void ItemUpdateHandler<TKey>((TKey Key, ListChangedType Change, string Property, object Data) Arg);
 
+        public static async Task<(IBindingReadonlyDictionaryProxy<TKey, TValue> BindingDict, ItemUpdateHandler<TKey> Caller)> 
+            GetProxy<TKey, TValue>(
+                Func<Tuple<TKey, string, object>, Task<Dictionary<TKey, TValue>>> getAllOrUpdater,
+                Func<TValue, TKey> keyProvider)
+        {
             if (getAllOrUpdater == null)
                 throw new ArgumentNullException(nameof(getAllOrUpdater));
-            if (itemUpdateSignal == null)
-                throw new ArgumentNullException(nameof(itemUpdateSignal));
             if (keyProvider == null)
                 throw new ArgumentNullException(nameof(keyProvider));
 
             var dictT = getAllOrUpdater(null);
+            var dcea = new DictionaryChangedEventArgs<TKey>(ListChangedType.ItemAdded, default(TKey));
             var props = TypeDescriptor.GetProperties(typeof(TValue));
             BindingReadonlyDictionaryProxy<TKey, TValue> bl = null;
 
@@ -91,7 +90,7 @@ namespace SignalR.Client.HubProxyObject
                 }
             };
 
-            Action<(TKey Key, ListChangedType Change, string Property, object Data)> onChange = args =>
+            ItemUpdateHandler<TKey> onChange = args =>
             {
                 var data = args.Data;
                 var jObj = data as JObject;
@@ -172,7 +171,6 @@ namespace SignalR.Client.HubProxyObject
                         }
                         bl.ProxyClear();
                         bl.RaiseListChanged(new DictionaryChangedEventArgs<TKey>(args.Change));
-                        
                         break;
                 }
             };
@@ -182,13 +180,15 @@ namespace SignalR.Client.HubProxyObject
                 foreach (var kvp in initDict)
                     ((INotifyPropertyChanged)kvp.Value).PropertyChanged += itemChangedLocally;
             }
-            bl = new BindingReadonlyDictionaryProxy<TKey, TValue>(initDict, () => itemUpdateSignal.On -= onChange);
-            itemUpdateSignal.On += onChange;
-            return bl;
+            bl = new BindingReadonlyDictionaryProxy<TKey, TValue>(initDict);
+            return (bl, onChange);
         }
 
-        public static (Func<Tuple<TKey, string, object>, Dictionary<TKey, TValue>> GetAll, HubSignal<(TKey Key, ListChangedType Change, string Property, object Data)> Updater) 
-            GetHubEntries<TKey, TValue>(Hub hub, BindingList<TValue> sourceList, Func<TValue, TKey> keyProvider, string updaterSignalName)
+        public static Func<Tuple<TKey, string, object>, Dictionary<TKey, TValue>>
+            GetHubEntries<TKey, TValue>(
+                BindingList<TValue> sourceList, 
+                Func<TValue, TKey> keyProvider, 
+                ItemUpdateHandler<TKey> Updater)
         {
             var props = TypeDescriptor.GetProperties(typeof(TValue));
             ValContainer<TKey> suppressFromKey = new ValContainer<TKey>();
@@ -232,7 +232,6 @@ namespace SignalR.Client.HubProxyObject
                 }
             };
 
-            var hubSignal = HubSignal<(TKey Key, ListChangedType Change, string Property, object Data)>.Create(hub, updaterSignalName);
             ListChangedEventHandler listChangedHandler = (sender, args) =>
             {
                 var newItem = (args.NewIndex >= 0) ? sourceList[args.NewIndex] : default(TValue);
@@ -240,30 +239,30 @@ namespace SignalR.Client.HubProxyObject
                 switch (args.ListChangedType)
                 {
                     case ListChangedType.ItemAdded:
-                        hubSignal.All((keyProvider(newItem), args.ListChangedType, null, newItem));
+                        Updater((keyProvider(newItem), args.ListChangedType, null, newItem));
                         break;
                     case ListChangedType.ItemChanged:
                         var key = keyProvider(newItem);
                         if (suppressFromKey.Key == null || !suppressFromKey.Key.Item1.Equals(key))
                         {
                             if (args.PropertyDescriptor != null)
-                                hubSignal.All((key, args.ListChangedType, args.PropertyDescriptor.Name, args.PropertyDescriptor.GetValue(newItem)));
+                                Updater((key, args.ListChangedType, args.PropertyDescriptor.Name, args.PropertyDescriptor.GetValue(newItem)));
                             else
-                                hubSignal.All((keyProvider(newItem), args.ListChangedType, null, null));
+                                Updater((keyProvider(newItem), args.ListChangedType, null, null));
                         }
                         break;
                     case ListChangedType.ItemDeleted:
-                        hubSignal.All((keyProvider(oldItem), args.ListChangedType, null, null));
+                        Updater((keyProvider(oldItem), args.ListChangedType, null, null));
                         break;
                     case ListChangedType.Reset:
-                        hubSignal.All((default(TKey), args.ListChangedType, null, null));
+                        Updater((default(TKey), args.ListChangedType, null, null));
                         break;
                     default:
                         throw new ArgumentException("Unhandled/unimplemented/unsupported change type: " + args.ListChangedType.ToString());
                 }
             };
             sourceList.ListChanged += listChangedHandler;
-            return (getAll, hubSignal);
+            return getAll;
         }
 
     }

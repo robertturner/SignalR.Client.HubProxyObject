@@ -92,8 +92,8 @@ namespace SignalR.Client.HubProxyObject.Demo
         {
             return Observable.Create<(string arg, int num)>(observer =>
             {
-                con.ASignal.On += observer.OnNext;
-                return Disposable.Create(() => con.ASignal.On -= observer.OnNext);
+                con.ASignal += observer.OnNext;
+                return Disposable.Create(() => con.ASignal -= observer.OnNext);
             })
             .Publish().RefCount();
         }

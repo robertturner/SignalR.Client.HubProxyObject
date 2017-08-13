@@ -17,13 +17,11 @@ namespace SignalR.Client.HubProxyObject.DemoUIServer
     {
         static readonly string url = "http://localhost:1968";
 
-        static Resolver resolver;
         
 
         public HostForm()
         {
             InitializeComponent();
-            resolver = new Resolver();
         }
 
         protected override async void OnLoad(EventArgs e)
@@ -50,45 +48,20 @@ namespace SignalR.Client.HubProxyObject.DemoUIServer
             });
         }
 
-        class Resolver : IDependencyResolver
-        {
-            public DemoHub hub = new DemoHub();
-            public void Dispose()
-            {
-                
-            }
-
-            public object GetService(Type serviceType)
-            {
-                if (serviceType == typeof(DemoHub))
-                    return hub;
-                throw new NotImplementedException();
-            }
-
-            public IEnumerable<object> GetServices(Type serviceType)
-            {
-                throw new NotImplementedException();
-            }
-
-            public void Register(Type serviceType, Func<object> activator)
-            {
-                throw new NotImplementedException();
-            }
-
-            public void Register(Type serviceType, IEnumerable<Func<object>> activators)
-            {
-                throw new NotImplementedException();
-            }
-        }
+        
 
         public class Startup
         {
             public void Configuration(IAppBuilder app)
             {
                 //app.UseCors(CorsOptions.AllowAll);
-                app.MapSignalR(new HubConfiguration { Resolver = resolver });
+                app.MapSignalR(new HubConfiguration());
             }
         }
 
+        private void buttonCallSig_Click(object sender, EventArgs e)
+        {
+            GlobalHost.ConnectionManager.GetHubContext("demoHub").Clients.All.ASig("bob");
+        }
     }
 }

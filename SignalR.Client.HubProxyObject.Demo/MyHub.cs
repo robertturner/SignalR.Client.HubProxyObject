@@ -14,12 +14,9 @@ namespace SignalR.Client.HubProxyObject.Demo
         {
             Console.WriteLine("MyHub: Constructor called");
             throw new NotImplementedException();
-            //HubSignal.ImplementSignals(this);
         }
 
-        public HubSignal<(string Arg1, int Arg2)> ASignal { get; private set; } // auto populated
 
-        HubSignal signals;
         public event Action<(string Arg1, int Arg2)> Signal2;
 
         public Task<string> AsyncMethod(string arg1)
@@ -36,7 +33,9 @@ namespace SignalR.Client.HubProxyObject.Demo
         public async void SyncMethodNoArgs()
         {
             Console.WriteLine("MyHub: SyncMethodNoArgs called");
-            await ASignal.All(("bob", 55));
+            //await ASignal.All(("bob", 55));
         }
+
+        public event Action<(string Arg1, int Arg2)> ASignal;
     }
 }

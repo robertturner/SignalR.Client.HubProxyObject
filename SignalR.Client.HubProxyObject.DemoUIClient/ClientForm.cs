@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Reactive.Linq;
 
 namespace SignalR.Client.HubProxyObject.DemoUIClient
 {
@@ -26,7 +27,10 @@ namespace SignalR.Client.HubProxyObject.DemoUIClient
         private void buttonConnect_Click(object sender, EventArgs e)
         {
             cp = new ConnectionProvider<IDemoHub>(url, sigR => sigR.CreateProxy<IDemoHub>("demoHub"));
-
+            cp.GetActiveConnection().Subscribe(con => con.HubProxies.ASig += 
+            arg => 
+            {
+            });
 
             //BindingListHubWrapper.GetProxy<string, ADataItem>()
 
